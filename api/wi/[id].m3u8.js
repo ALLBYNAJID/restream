@@ -1,47 +1,38 @@
-import http from 'http';
 import https from 'https';
-
-const headers = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-  'Referer': 'http://watchindia.net/',
-};
-
-function fetchM3U8(url) {
-  return new Promise((resolve, reject) => {
-    const client = url.startsWith('https') ? https : http;
-
-    client.get(url, { headers }, (res) => {
-      if (res.statusCode !== 200) {
-        return reject(new Error(`❌ Upstream error: ${res.statusCode}`));
-      }
-
-      let data = '';
-      res.on('data', (chunk) => (data += chunk));
-      res.on('end', () => resolve(data));
-    }).on('error', reject);
-  });
-}
+import http from 'http';
 
 export default async function handler(req, res) {
   const { id } = req.query;
-
   if (!id) return res.status(400).send("❌ Missing stream ID");
 
-  const originUrl = `http://watchindia.net:8880/live/40972/04523/${id}.m3u8`;
+  const upstreamUrl = `http://watchindia.net:8880/live/40972/04523/${id}.m3u8`;
 
-  try {
-    const m3u8 = await fetchM3U8(originUrl);
+  https
+    .get(upstreamUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Referer': 'http://watchindia.net/'
+      }
+    }, (upRes) => {
+      if (upRes.statusCode !== 200) {
+        res.status(502).send(`❌ Upstream error: ${upRes.statusCode}`);
+        return;
+      }
 
-    // Rewrite all .ts to proxy path
-    const proxied = m3u8.replace(/^(?!#)(.*\.ts\?token=.*)$/gm, (line) => {
-      const encoded = encodeURIComponent(line);
-      return `/api/wi/${id}/segment.ts?ts=${encoded}`;
-    });
+      let data = '';
+      upRes.on('data', chunk => (data += chunk));
+      upRes.on('end', () => {
+        const host = req.headers.host;
+        const proto = req.headers['x-forwarded-proto'] || 'https';
+        const base = `${proto}://${host}/api/wi/${id}`;
 
-    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
-    res.setHeader('Cache-Control', 'no-store');
-    res.status(200).send(proxied);
-  } catch (err) {
-    res.status(502).send(err.message);
-  }
+        const rewritten = data.replace(/^(?!#)(.+\.ts.*)$/gm, seg =>
+          `${base}/segment?ts=${encodeURIComponent(seg.trim())}`
+        );
+
+        res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+        res.status(200).send(rewritten);
+      });
+    })
+    .on('error', () => res.status(500).send("❌ Fetch playlist failed"));
 }
