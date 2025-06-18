@@ -1,13 +1,11 @@
 import http from 'http';
 
-export default async function handler(req, res) {
+export default function handler(req, res) {
   let slug = req.query.slug;
-
-  // Check slug exists and is array
   if (!slug) {
     return res.status(400).send("❌ Missing stream ID");
   }
-  if (typeof slug === "string") {
+  if (typeof slug === 'string') {
     slug = [slug];
   }
 
