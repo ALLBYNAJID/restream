@@ -1,8 +1,0 @@
-{
-  "rewrites": [
-    {
-      "source": "/api/wi/:id.m3u8",
-      "destination": "/api/wi/[id].m3u8"
-    }
-  ]
-}
