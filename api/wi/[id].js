@@ -3,11 +3,17 @@ import https from 'https';
 import { URL } from 'url';
 
 export default async function handler(req, res) {
-  const { id } = req.query;
-  if (!id) {
+  const { slug } = req.query;
+
+  if (!slug || slug.length === 0) {
     res.status(400).send("❌ Missing stream ID");
     return;
   }
+
+  const filename = slug.join('/'); // supports nested slug (e.g., wi/folder/803.m3u8)
+
+  // Remove .m3u8 extension if present
+  const id = filename.replace(/\.m3u8$/i, '').replace(/\.ts$/i, '');
 
   const originalUrl = `http://watchindia.net:8880/live/40972/04523/${id}.ts`;
 
@@ -17,8 +23,7 @@ export default async function handler(req, res) {
       return;
     }
 
-    const parsed = new URL(url);
-    const client = parsed.protocol === 'https:' ? https : http;
+    const client = url.startsWith('https') ? https : http;
 
     client.get(url, {
       headers: {
@@ -30,7 +35,7 @@ export default async function handler(req, res) {
       if ([301, 302].includes(streamRes.statusCode)) {
         const redirectUrl = streamRes.headers.location;
         if (!redirectUrl) {
-          res.status(502).send("❌ Redirect without location");
+          res.status(502).send("❌ Redirect with no location");
           return;
         }
         fetchStream(redirectUrl, redirectCount + 1);
