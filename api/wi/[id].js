@@ -1,4 +1,4 @@
-// File: /api/wi/[id].js
+// Vercel Serverless Function to proxy TS segment
 import http from 'http';
 import https from 'https';
 
@@ -6,28 +6,36 @@ export default async function handler(req, res) {
   const { id } = req.query;
 
   if (!id) {
-    res.status(400).send('Missing stream ID');
+    res.status(400).send("❌ Missing stream ID");
     return;
   }
 
   const remoteUrl = `http://watchindia.net:8880/live/40972/04523/${id}.ts`;
-
   const client = remoteUrl.startsWith('https') ? https : http;
 
-  client.get(remoteUrl, (streamRes) => {
+  const options = {
+    headers: {
+      'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18',
+      'Accept': '*/*',
+      'Connection': 'keep-alive'
+    }
+  };
+
+  client.get(remoteUrl, options, (streamRes) => {
     if (streamRes.statusCode !== 200) {
-      res.status(502).send(`❌ Error: Upstream returned ${streamRes.statusCode}`);
+      res.status(502).send(`❌ Upstream error: ${streamRes.statusCode}`);
       return;
     }
 
-    // Set headers for HLS .ts streaming
-    res.setHeader('Content-Type', 'video/MP2T');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Transfer-Encoding', 'chunked');
-    res.setHeader('Connection', 'keep-alive');
+    res.writeHead(200, {
+      'Content-Type': 'video/MP2T',
+      'Transfer-Encoding': 'chunked',
+      'Cache-Control': 'no-store',
+      'Connection': 'keep-alive',
+    });
 
     streamRes.pipe(res);
   }).on('error', (err) => {
-    res.status(502).send('❌ Failed to fetch stream.');
+    res.status(500).send("❌ Error fetching TS segment.");
   });
 }
