@@ -9,7 +9,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const originalUrl = `http://watchindia.net:8880/live/40972/04523/${id}.ts`;
+  const originalUrl = `http://watchindia.net:8880/live/40972/04523/${id}.m3u8`;
 
   function fetchStream(url, redirectCount = 0) {
     if (redirectCount > 5) {
