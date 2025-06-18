@@ -1,18 +1,23 @@
 import http from 'http';
+import https from 'https';
 
 export default async function handler(req, res) {
-  const { slug } = req.query;
+  let { slug } = req.query;
 
-  if (!slug || slug.length === 0) {
+  // Normalize to array
+  if (!slug) {
     return res.status(400).send("❌ Missing stream ID");
+  }
+
+  if (!Array.isArray(slug)) {
+    slug = [slug];
   }
 
   const filename = slug.join('/');
   const id = filename.replace(/\.(m3u8|ts)$/i, '');
 
   const streamUrl = `http://watchindia.net:8880/live/40972/04523/${id}.ts`;
-
-  const client = streamUrl.startsWith('https') ? require('https') : require('http');
+  const client = streamUrl.startsWith('https') ? https : http;
 
   client.get(streamUrl, {
     headers: {
