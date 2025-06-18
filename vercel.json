@@ -1,8 +1,8 @@
 {
   "rewrites": [
     {
-      "source": "/api/wi/:slug*",
-      "destination": "/api/wi/[...slug].js"
+      "source": "/api/wi/:match*",
+      "destination": "/api/wi/[...slug]"
     }
   ]
 }
