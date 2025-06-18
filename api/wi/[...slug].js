@@ -4,62 +4,62 @@ import https from 'https';
 export default async function handler(req, res) {
   let slug = req.query.slug;
 
-  // ✅ Fix: force slug to array if it's a string
+  // 🔐 Fix Vercel passing slug as string (not array)
   if (!slug) return res.status(400).send("❌ Missing stream ID");
   if (typeof slug === 'string') slug = [slug];
 
-  const last = slug[slug.length - 1];
-
-  const isPlaylist = last.endsWith('.m3u8');
   const streamId = slug[0];
-  const filePath = slug.slice(1).join('/');
+  const lastPart = slug[slug.length - 1];
+  const isM3U8 = lastPart.endsWith('.m3u8');
+  const restPath = slug.slice(1).join('/');
 
   const base = `http://watchindia.net:8880/live/40972/04523`;
 
-  if (isPlaylist) {
+  if (isM3U8) {
+    // Proxy M3U8 playlist
     const playlistUrl = `${base}/${streamId}.m3u8`;
 
     http.get(playlistUrl, (resp) => {
       let data = '';
       resp.on('data', chunk => data += chunk);
       resp.on('end', () => {
-        const host = req.headers.host;
         const proto = req.headers['x-forwarded-proto'] || 'https';
+        const host = req.headers.host;
 
-        const modified = data.replace(/(.*\.ts)/g, segment =>
-          `${proto}://${host}/api/wi/${streamId}/${segment.trim()}`
+        const replaced = data.replace(/(.*\.ts)/g, ts =>
+          `${proto}://${host}/api/wi/${streamId}/${ts.trim()}`
         );
 
         res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
-        res.status(200).send(modified);
+        res.status(200).send(replaced);
       });
     }).on('error', () => {
-      res.status(500).send("❌ Failed to fetch playlist");
+      res.status(502).send("❌ Failed to fetch playlist");
     });
 
   } else {
-    const segmentUrl = `${base}/${streamId}/${filePath}`;
-    const client = segmentUrl.startsWith('https') ? https : http;
+    // Proxy TS segment
+    const tsUrl = `${base}/${streamId}/${restPath}`;
+    const client = tsUrl.startsWith('https') ? https : http;
 
-    client.get(segmentUrl, {
+    client.get(tsUrl, {
       headers: {
         'User-Agent': 'VLC',
         'Accept': '*/*'
       }
-    }, stream => {
-      if (stream.statusCode !== 200) {
-        return res.status(502).send(`❌ Segment error: ${stream.statusCode}`);
+    }, streamRes => {
+      if (streamRes.statusCode !== 200) {
+        return res.status(502).send(`❌ TS Error: ${streamRes.statusCode}`);
       }
 
       res.writeHead(200, {
         'Content-Type': 'video/MP2T',
-        'Transfer-Encoding': 'chunked',
-        'Connection': 'keep-alive'
+        'Transfer-Encoding': 'chunked'
       });
 
-      stream.pipe(res);
+      streamRes.pipe(res);
     }).on('error', err => {
-      res.status(500).send("❌ Segment fetch failed");
+      res.status(500).send("❌ Segment fetch error: " + err.message);
     });
   }
 }
