@@ -3,8 +3,13 @@ import http from 'http';
 export default async function handler(req, res) {
   let slug = req.query.slug;
 
-  if (!slug) return res.status(400).send("❌ Missing stream ID");
-  if (typeof slug === "string") slug = [slug];
+  // Check slug exists and is array
+  if (!slug) {
+    return res.status(400).send("❌ Missing stream ID");
+  }
+  if (typeof slug === "string") {
+    slug = [slug];
+  }
 
   const filename = slug[0];
   if (!filename.endsWith('.m3u8')) {
@@ -23,12 +28,10 @@ export default async function handler(req, res) {
     let data = '';
     upstreamRes.on('data', chunk => data += chunk);
     upstreamRes.on('end', () => {
-      // Optionally, rewrite segment URLs inside playlist here if needed.
-
       res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
       res.status(200).send(data);
     });
-  }).on('error', err => {
+  }).on('error', () => {
     res.status(500).send("❌ Failed to fetch playlist");
   });
 }
